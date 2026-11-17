@@ -1,0 +1,40 @@
+{
+  "target": {
+    "distro": "Debian GNU/Linux 12 (bookworm)",
+    "arch": "amd64",
+    "python": "3.11"
+  },
+  "created_at": "2026-11-17",
+  "install_command": "./install-deps.sh",
+  "system_packages": {
+    "format": "local APT repository",
+    "count": 271,
+    "bytes": 203856212,
+    "path": "vendor/apt/pool",
+    "packages_index_sha256": "827b36b5ed7cff9c8fe6ca142415ce024099692801a5e1970f9c005a82267915"
+  },
+  "python_wheels": {
+    "format": "offline pip --no-index --find-links",
+    "count": 14,
+    "bytes": 15521806,
+    "path": "vendor/wheels"
+  },
+  "direct_packages": [
+    "ghostscript",
+    "poppler-utils",
+    "tesseract-ocr",
+    "tesseract-ocr-eng",
+    "tesseract-ocr-por",
+    "fonts-dejavu-core",
+    "python3-venv",
+    "libreoffice-core-nogui",
+    "libreoffice-writer-nogui",
+    "libreoffice-calc-nogui",
+    "libreoffice-impress-nogui"
+  ],
+  "note": "Instalador offline: usa apenas vendor/apt; nao baixa pacotes da internet. LibreOffice so e instalado se soffice ainda nao existir. Requer Debian 12 amd64 e Python 3.11.",
+  "install_steps": [
+    "./install-deps.sh",
+    "./run.sh"
+  ]
+}
