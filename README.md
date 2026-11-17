@@ -16,6 +16,16 @@ curl -fsSL https://raw.githubusercontent.com/gluckrickz-oss/PDF/main/setup-linux
 
 O `setup-linux.sh` instala Python, Ghostscript, Poppler, Tesseract e LibreOffice pelo gerenciador de pacotes (apt, dnf, zypper ou pacman), baixa o projeto em `~/PDF2`, prepara o ambiente Python e cria o atalho "PDF2" no menu.
 
+#### Usar pela rede
+
+Para outros computadores da rede acessarem o PDF2 instalado nesta máquina:
+
+```bash
+bash ~/PDF2/habilitar-rede.sh
+```
+
+O script cria o serviço `pdf2`, que inicia junto com o computador, libera a porta 8000 no firewall (ufw ou firewalld) e mostra o endereço para abrir nos outros computadores (`http://IP-DA-MAQUINA:8000`). Não há senha: qualquer pessoa da rede consegue usar. Para voltar a usar só nesta máquina: `bash ~/PDF2/habilitar-rede.sh --desativar`.
+
 Aplicação local para trabalhar com arquivos PDF pelo navegador. O servidor usa Flask e reúne ferramentas para manipular PDFs e converter documentos e imagens.
 
 ## Requisitos

@@ -136,6 +136,10 @@ LAUNCHER="$INSTALL_DIR/iniciar-pdf2.sh"
 cat > "$LAUNCHER" <<EOF
 #!/usr/bin/env bash
 cd "$INSTALL_DIR"
+# Se o PDF2 já estiver rodando (por exemplo, como serviço de rede), só abre o navegador.
+if curl -fsS -o /dev/null "http://127.0.0.1:$PORT/" 2>/dev/null; then
+  exec xdg-open "http://127.0.0.1:$PORT/"
+fi
 ( sleep 2; xdg-open "http://127.0.0.1:$PORT/" >/dev/null 2>&1 || true ) &
 exec "$VENV/bin/python" app.py --port $PORT "\$@"
 EOF
