@@ -30,6 +30,31 @@ BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 UPLOAD_DIR = DATA_DIR / "uploads"
 OUTPUT_DIR = DATA_DIR / "outputs"
+
+
+def _configure_bundled_windows_tools() -> None:
+    """Expose the portable Windows tools without changing the system PATH."""
+    if os.name != "nt":
+        return
+
+    tools_dir = BASE_DIR / "vendor" / "windows"
+    bundled_paths = (
+        tools_dir / "ghostscript" / "bin",
+        tools_dir / "poppler" / "bin",
+        tools_dir / "tesseract",
+        tools_dir / "libreoffice" / "program",
+    )
+    existing = [str(path) for path in bundled_paths if path.is_dir()]
+    if existing:
+        os.environ["PATH"] = os.pathsep.join(existing + [os.environ.get("PATH", "")])
+
+    tessdata = tools_dir / "tesseract" / "tessdata"
+    if tessdata.is_dir():
+        os.environ.setdefault("TESSDATA_PREFIX", str(tools_dir / "tesseract"))
+
+
+_configure_bundled_windows_tools()
+
 for _d in (UPLOAD_DIR, OUTPUT_DIR):
     _d.mkdir(parents=True, exist_ok=True)
 
@@ -106,9 +131,14 @@ def run(cmd: list[str], timeout: int = 300, home: Path | None = None) -> subproc
     env = os.environ.copy()
     if home is not None:
         env["HOME"] = str(home)
+    command = list(cmd)
+    if os.name == "nt" and Path(command[0]).name.lower() == "gs":
+        bundled_gs = BASE_DIR / "vendor" / "windows" / "ghostscript" / "bin" / "gswin64c.exe"
+        if bundled_gs.is_file():
+            command[0] = str(bundled_gs)
     try:
         proc = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=timeout, env=env
+            command, capture_output=True, text=True, timeout=timeout, env=env
         )
     except FileNotFoundError:
         packages = {
@@ -409,7 +439,7 @@ def convert_office(src: Path, out_dir: Path, target: str = "pdf") -> Path:
     profile.mkdir(parents=True, exist_ok=True)
     cmd = [
         "soffice", "--headless", "--nologo",
-        f"-env:UserInstallation=file://{profile}",
+        f"-env:UserInstallation={profile.resolve().as_uri()}",
     ]
     if target == "docx":
         cmd += ["--infilter=writer_pdf_import", "--convert-to", "docx:MS Word 2007 XML"]

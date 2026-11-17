@@ -1,0 +1,36 @@
+name: Build PDF2 Windows portable
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'app.py'
+      - 'requirements.txt'
+      - 'static/**'
+      - 'templates/**'
+      - 'run-windows.bat'
+      - 'windows/**'
+      - '.github/workflows/build-windows-portable.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13.16'
+          architecture: x64
+      - name: Build self-contained folder
+        shell: pwsh
+        run: ./windows/build-windows.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PDF2-Windows-portable
+          path: dist/PDF2-Windows-portable.zip
+          if-no-files-found: error
+          retention-days: 90
