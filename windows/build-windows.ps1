@@ -134,7 +134,7 @@ Included components:
 - Poppler $PopplerVersion (Windows build from oschwartz10612/poppler-windows): https://github.com/oschwartz10612/poppler-windows/releases
 - Tesseract $TesseractVersion (Apache-2.0): https://github.com/tesseract-ocr/tesseract
 - Tesseract language data eng/osd/por, pinned at ${TessdataCommit}: https://github.com/tesseract-ocr/tessdata_fast
-- LibreOffice $LibreOfficeVersion: https://www.libreoffice.org/download/
+- LibreOffice ${LibreOfficeVersion}: https://www.libreoffice.org/download/
 - Python packages are listed in requirements.txt and their licenses are included in their distributions.
 
 The Ghostscript AGPL build is included. Review its license terms before redistributing this bundle.
