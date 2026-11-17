@@ -69,6 +69,9 @@ WRAPPER
   chmod +x "$STAGE/bin/$tool"
 done
 chmod +x "$STAGE/run.sh"
+# These empty TLS key directories are restricted in Debian packages and are
+# unnecessary for PDF2. Remove them so the portable archive never carries keys.
+rm -rf "$ROOTFS/usr/lib/ssl/private" "$ROOTFS/etc/ssl/private" "$ROOTFS/var/lib/ssl/private"
 python3 - "$ROOTFS/usr/lib/libreoffice/program/soffice" <<'PY'
 from pathlib import Path
 import sys
