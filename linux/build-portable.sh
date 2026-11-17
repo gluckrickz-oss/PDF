@@ -54,13 +54,13 @@ ROOTFS="$APP_DIR/runtime/rootfs"
 LOADER="$ROOTFS/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2"
 [[ -x "$LOADER" ]] || LOADER="$ROOTFS/lib64/ld-linux-x86-64.so.2"
 LIBRARY_PATH="$(find "$ROOTFS/lib" "$ROOTFS/usr/lib" \( -type f -o -type l \) \( -name '*.so' -o -name '*.so.*' \) -printf '%h\n' 2>/dev/null | sort -u | paste -sd: -)"
-export LD_LIBRARY_PATH="$LIBRARY_PATH${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 export TESSDATA_PREFIX="$ROOTFS/usr/share/tesseract-ocr/5/tessdata"
 export GS_LIB="$ROOTFS/usr/share/ghostscript/10.0.0/Resource/Init:$ROOTFS/usr/share/ghostscript/10.0.0/Resource/Font"
 export UNO_PATH="$ROOTFS/usr/lib/libreoffice/program"
-export URE_BOOTSTRAP="file://$ROOTFS/usr/lib/libreoffice/program/fundamentalrc"
 export POPPLER_DATADIR="$ROOTFS/usr/share/poppler"
 if [[ "TOOL_NAME" == "soffice" ]]; then
+  export PDF2_LOADER="$LOADER"
+  export PDF2_LIBRARY_PATH="$LIBRARY_PATH"
   exec "$ROOTFS/usr/bin/soffice" "$@"
 fi
 exec "$LOADER" --library-path "$LIBRARY_PATH" "$ROOTFS/usr/bin/TOOL_NAME" "$@"
@@ -74,10 +74,27 @@ export PDF2_BUNDLE_ROOT="$STAGE"
 export PYTHONHOME="$ROOTFS/usr"
 export PYTHONPATH="$STAGE/runtime/python-packages"
 export PYTHONNOUSERSITE=1
-export LD_LIBRARY_PATH="$(find "$ROOTFS/lib" "$ROOTFS/usr/lib" \( -type f -o -type l \) \( -name '*.so' -o -name '*.so.*' \) -printf '%h\n' 2>/dev/null | sort -u | paste -sd: -)"
+LIBRARY_PATH="$(find "$ROOTFS/lib" "$ROOTFS/usr/lib" \( -type f -o -type l \) \( -name '*.so' -o -name '*.so.*' \) -printf '%h\n' 2>/dev/null | sort -u | paste -sd: -)"
 LOADER="$ROOTFS/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2"
 [[ -x "$LOADER" ]] || LOADER="$ROOTFS/lib64/ld-linux-x86-64.so.2"
-"$LOADER" --library-path "$LD_LIBRARY_PATH" "$ROOTFS/usr/bin/python3.11" -c 'import flask, PIL, pypdf, reportlab, cryptography'
+"$LOADER" --library-path "$LIBRARY_PATH" "$ROOTFS/usr/bin/python3.11" -c 'import flask, PIL, pypdf, reportlab, cryptography'
+ROOTFS_URL="$("$LOADER" --library-path "$LIBRARY_PATH" "$ROOTFS/usr/bin/python3.11" -c 'from pathlib import Path; import sys; print(Path(sys.argv[1]).as_uri())' "$ROOTFS")"
+export URE_BOOTSTRAP="$ROOTFS_URL/usr/lib/libreoffice/program/fundamentalrc"
+export FHS_CONFIG_FILE="$ROOTFS_URL/etc/libreoffice/sofficerc"
+export PDF2_LOADER="$LOADER"
+export PDF2_LIBRARY_PATH="$LIBRARY_PATH"
+"$LOADER" --library-path "$LIBRARY_PATH" "$ROOTFS/usr/bin/python3.11" -c 'from pathlib import Path; import sys; p=Path(sys.argv[1]); s=p.read_text(); p.write_text(s.replace("file:///usr/lib/libreoffice", Path(sys.argv[2]).as_uri()))' "$ROOTFS/usr/lib/libreoffice/program/fundamentalrc" "$ROOTFS/usr/lib/libreoffice"
+python3 - "$ROOTFS/usr/lib/libreoffice/program/soffice" <<'PY'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+script = path.read_text()
+old = 'exec $RRCHECK $VALGRINDCHECK $STRACECHECK "$sd_prog/oosplash" "$@"'
+new = 'exec "$PDF2_LOADER" --library-path "$PDF2_LIBRARY_PATH" "$sd_prog/oosplash" "$@"'
+if old not in script:
+    raise SystemExit("Não foi possível preparar o launcher relocável do LibreOffice.")
+path.write_text(script.replace(old, new))
+PY
 "$STAGE/bin/gs" --version >/dev/null
 "$STAGE/bin/pdftoppm" -v >/dev/null 2>&1
 "$STAGE/bin/pdftotext" -v >/dev/null 2>&1
