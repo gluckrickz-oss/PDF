@@ -35,7 +35,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: PDF2-Windows-portable
-          path: dist/PDF2-Windows-portable.zip
+          path: dist/PDF2-Windows-portable
           if-no-files-found: error
           retention-days: 90
 
@@ -53,6 +53,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: PDF2-Linux-Debian12-portable
-          path: dist/PDF2-Linux-Debian12-portable.zip
+          path: dist/PDF2-Linux-Debian12-portable
           if-no-files-found: error
           retention-days: 90
