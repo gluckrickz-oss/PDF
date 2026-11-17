@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Servidor local de ferramentas PDF (catálogo mapeado com REA)."""
+"""Servidor local de ferramentas PDF."""
 
 from __future__ import annotations
 
@@ -60,7 +60,7 @@ for _d in (UPLOAD_DIR, OUTPUT_DIR):
 
 MAX_FILES = 60
 MAX_TOTAL_BYTES = 250 * 1024 * 1024
-JOB_TTL = 2 * 60 * 60
+JOB_TTL = 40 * 60  # 40 minutos
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff"}
 OFFICE_EXTS = {
     ".doc", ".docx", ".odt", ".rtf", ".txt",
@@ -482,11 +482,6 @@ def index():
     except Exception:
         pass
     return render_template("index.html", langs=langs)
-
-
-@app.get("/rea/evidence-summary.json")
-def rea_evidence():
-    return send_from_directory(BASE_DIR / "rea", "evidence-summary.json")
 
 
 @app.get("/files/<job>/<path:name>")
@@ -1118,13 +1113,13 @@ def api_pdf2txt():
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Servidor local de ferramentas PDF (PDF2)")
+    parser = argparse.ArgumentParser(description="Servidor local de ferramentas PDF")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--debug", action="store_true")
     args = parser.parse_args()
     cleanup_old(force=True)
-    print(f"\n  PDF2 Local rodando em http://{args.host}:{args.port}\n")
+    print(f"\n  PDF rodando em http://{args.host}:{args.port}\n")
     app.run(host=args.host, port=args.port, debug=args.debug, threaded=True)
 
 

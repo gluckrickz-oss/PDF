@@ -1,11 +1,20 @@
 # PDF
 
-## Baixar versão pronta
+## Baixar
 
-- [**Windows x64 — baixar ZIP**](https://github.com/gluckrickz-oss/PDF/actions/runs/44124720998/artifacts/14345534944) — extraia e execute `run-windows.bat`.
-- [**Linux Debian 12 x64 — baixar ZIP**](https://github.com/gluckrickz-oss/PDF/actions/runs/44124720998/artifacts/14347077299) — extraia e execute `run.sh`.
+### Windows
 
-Os dois pacotes incluem Python e as ferramentas necessárias. É só extrair e usar; não instale dependências. Os links do GitHub Actions ficam disponíveis por 90 dias. [Ver builds e downloads mais recentes](https://github.com/gluckrickz-oss/PDF/actions/workflows/build-windows-portable.yml).
+[**Baixar PDF2-Windows-portable.zip**](https://github.com/gluckrickz-oss/PDF/releases/latest/download/PDF2-Windows-portable.zip): extraia e dê dois cliques em `iniciar.bat`.
+
+O pacote já traz Python, Ghostscript, Poppler, Tesseract (português e inglês) e LibreOffice. Não é preciso instalar nada.
+
+### Linux
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/gluckrickz-oss/PDF/main/setup-linux.sh -o setup-linux.sh && bash setup-linux.sh
+```
+
+O `setup-linux.sh` instala Python, Ghostscript, Poppler, Tesseract e LibreOffice pelo gerenciador de pacotes (apt, dnf, zypper ou pacman), baixa o projeto em `~/PDF2`, prepara o ambiente Python e cria o atalho "PDF2" no menu.
 
 Aplicação local para trabalhar com arquivos PDF pelo navegador. O servidor usa Flask e reúne ferramentas para manipular PDFs e converter documentos e imagens.
 
@@ -24,4 +33,4 @@ Abra no navegador o endereço local exibido pelo servidor. Para iniciar sem o bu
 
 O script `install-deps.sh` instala dependências a partir de `vendor/apt` e requer Debian 12 amd64. `run.sh` cria o ambiente virtual em `.venv` e usa `vendor/wheels` quando disponível.
 
-O pacote Windows contém Ghostscript sob a distribuição AGPL; consulte `THIRD-PARTY-NOTICES.txt` antes de redistribuí-lo.
+O pacote Windows contém Ghostscript, distribuído sob a AGPL.
