@@ -78,6 +78,8 @@ LIBRARY_PATH="$(find "$ROOTFS/lib" "$ROOTFS/usr/lib" \( -type f -o -type l \) \(
 LOADER="$ROOTFS/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2"
 [[ -x "$LOADER" ]] || LOADER="$ROOTFS/lib64/ld-linux-x86-64.so.2"
 "$LOADER" --library-path "$LIBRARY_PATH" "$ROOTFS/usr/bin/python3.11" -c 'import flask, PIL, pypdf, reportlab, cryptography'
+FUNDAMENTALRC_BACKUP="$DIST/fundamentalrc.original"
+cp "$ROOTFS/usr/lib/libreoffice/program/fundamentalrc" "$FUNDAMENTALRC_BACKUP"
 ROOTFS_URL="$("$LOADER" --library-path "$LIBRARY_PATH" "$ROOTFS/usr/bin/python3.11" -c 'from pathlib import Path; import sys; print(Path(sys.argv[1]).as_uri())' "$ROOTFS")"
 export URE_BOOTSTRAP="$ROOTFS_URL/usr/lib/libreoffice/program/fundamentalrc"
 export FHS_CONFIG_FILE="$ROOTFS_URL/etc/libreoffice/sofficerc"
@@ -90,7 +92,7 @@ import sys
 path = Path(sys.argv[1])
 script = path.read_text()
 old = 'exec $RRCHECK $VALGRINDCHECK $STRACECHECK "$sd_prog/oosplash" "$@"'
-new = 'exec "$PDF2_LOADER" --library-path "$PDF2_LIBRARY_PATH" "$sd_prog/oosplash" "$@"'
+new = 'export LD_LIBRARY_PATH="$PDF2_LIBRARY_PATH"\nexec "$PDF2_LOADER" --library-path "$PDF2_LIBRARY_PATH" "$sd_prog/oosplash" "$@"'
 if old not in script:
     raise SystemExit("Não foi possível preparar o launcher relocável do LibreOffice.")
 path.write_text(script.replace(old, new))
@@ -100,6 +102,8 @@ PY
 "$STAGE/bin/pdftotext" -v >/dev/null 2>&1
 "$STAGE/bin/tesseract" --list-langs >/dev/null
 "$STAGE/bin/soffice" --headless --version >/dev/null 2>&1
+cp "$FUNDAMENTALRC_BACKUP" "$ROOTFS/usr/lib/libreoffice/program/fundamentalrc"
+rm -f "$FUNDAMENTALRC_BACKUP"
 
 ZIP="$DIST/PDF2-Linux-Debian12-portable.zip"
 rm -f "$ZIP"
