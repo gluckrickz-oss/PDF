@@ -72,6 +72,9 @@ chmod +x "$STAGE/run.sh"
 # These empty TLS key directories are restricted in Debian packages and are
 # unnecessary for PDF2. Remove them so the portable archive never carries keys.
 rm -rf "$ROOTFS/usr/lib/ssl/private" "$ROOTFS/etc/ssl/private" "$ROOTFS/var/lib/ssl/private"
+# Man pages are not used at runtime; some contain colons that GitHub's
+# downloadable artifact format rejects as file names.
+rm -rf "$ROOTFS/usr/share/man"
 python3 - "$ROOTFS/usr/lib/libreoffice/program/soffice" <<'PY'
 from pathlib import Path
 import sys
