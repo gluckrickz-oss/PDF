@@ -10,21 +10,30 @@ O pacote já traz Python, Ghostscript, Poppler, Tesseract (português e inglês)
 
 ### Linux
 
+Para instalar ou atualizar, rode o mesmo comando:
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/gluckrickz-oss/PDF/main/setup-linux.sh -o setup-linux.sh && bash setup-linux.sh
 ```
 
-O `setup-linux.sh` instala Python, Ghostscript, Poppler, Tesseract e LibreOffice pelo gerenciador de pacotes (apt, dnf, zypper ou pacman), baixa o projeto em `~/PDF2`, prepara o ambiente Python e cria o atalho "PDF2" no menu.
+- **Primeira vez:** instala Python, Ghostscript, Poppler, Tesseract e LibreOffice pelo gerenciador de pacotes (apt, dnf, zypper ou pacman), baixa o projeto em `~/PDF2`, prepara o ambiente Python e cria o serviço `pdf2`, que inicia junto com o computador.
+- **Já instalado:** atualiza o projeto e as bibliotecas e reinicia o serviço, mantendo o modo local ou rede escolhido.
 
-#### Usar pela rede
+Depois de instalado, use o comando `pdf2`:
 
-Para outros computadores da rede acessarem o PDF2 instalado nesta máquina:
+| Comando | O que faz |
+|---|---|
+| `pdf2 status` | Mostra se está rodando e os endereços |
+| `pdf2 start` | Inicia |
+| `pdf2 stop` | Para |
+| `pdf2 restart` | Reinicia |
+| `pdf2 abrir` | Inicia, se preciso, e abre no navegador |
+| `pdf2 logs` | Mostra as últimas mensagens do servidor |
+| `pdf2 atualizar` | Baixa a versão mais recente do GitHub |
+| `pdf2 rede` | Libera o acesso pela rede (`http://IP-DA-MAQUINA:8000`) |
+| `pdf2 rede --desativar` | Volta a funcionar só nesta máquina |
 
-```bash
-bash ~/PDF2/habilitar-rede.sh
-```
-
-O script cria o serviço `pdf2`, que inicia junto com o computador, libera a porta 8000 no firewall (ufw ou firewalld) e mostra o endereço para abrir nos outros computadores (`http://IP-DA-MAQUINA:8000`). Não há senha: qualquer pessoa da rede consegue usar. Para voltar a usar só nesta máquina: `bash ~/PDF2/habilitar-rede.sh --desativar`.
+O acesso pela rede não tem senha: qualquer pessoa da rede consegue usar.
 
 Aplicação local para trabalhar com arquivos PDF pelo navegador. O servidor usa Flask e reúne ferramentas para manipular PDFs e converter documentos e imagens.
 

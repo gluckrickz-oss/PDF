@@ -49,11 +49,11 @@
     { id: "repair", name: "Reparar PDF", desc: "Tente recuperar um PDF com danos ou erros.", icon: "repair", color: "c-rose", category: "otimizar", accept: PDF, hint: "Reconstrói a estrutura do arquivo. Revise o resultado." },
     { id: "crop", name: "Recortar PDF", desc: "Reduza as margens e o tamanho das páginas.", icon: "crop", color: "c-emerald", category: "editar", accept: PDF,
       options: [
-        { type: "number", id: "top", label: "Margem superior (%)", value: 0, min: 0, max: 45, step: 0.5 },
-        { type: "number", id: "right", label: "Margem direita (%)", value: 0, min: 0, max: 45, step: 0.5 },
-        { type: "number", id: "bottom", label: "Margem inferior (%)", value: 0, min: 0, max: 45, step: 0.5 },
-        { type: "number", id: "left", label: "Margem esquerda (%)", value: 0, min: 0, max: 45, step: 0.5 }
-      ], hint: "Percentual de cada lado, aplicado a todas as páginas." },
+        { type: "number", id: "top", label: "Margem superior (%)", value: 0, min: 0, max: 95, step: 0.1 },
+        { type: "number", id: "right", label: "Margem direita (%)", value: 0, min: 0, max: 95, step: 0.1 },
+        { type: "number", id: "bottom", label: "Margem inferior (%)", value: 0, min: 0, max: 95, step: 0.1 },
+        { type: "number", id: "left", label: "Margem esquerda (%)", value: 0, min: 0, max: 95, step: 0.1 }
+      ], hint: "Selecione a área na prévia ou ajuste os valores." },
     { id: "rotate", name: "Girar PDF", desc: "Corrija páginas de cabeça para baixo.", icon: "rotate", color: "c-teal", category: "editar", accept: PDF,
       options: [
         { type: "select", id: "angle", label: "Rotação", value: "90", choices: [["90", "90° (horário)"], ["180", "180°"], ["270", "270° (anti-horário)"]] },
@@ -259,6 +259,7 @@
     if (!current) return;
     renderFiles(current.listEl, current.tool);
     updateSubmitState();
+    if (current.tool.id === "crop") refreshCropPreview();
     setStep(state.files.length ? 2 : 1);
   }
 
@@ -268,6 +269,274 @@
     const min = current.tool.min || 1;
     const enough = state.files.length >= min;
     btn.disabled = state.busy || !enough;
+  }
+
+  const CROP_MIN = 0.05;
+
+  function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+  }
+
+  function fileKey(file) {
+    return `${file.name}:${file.size}:${file.lastModified || 0}`;
+  }
+
+  function buildCropPreview() {
+    const image = h("img", { class: "crop-image", alt: "Prévia da página do PDF" });
+    const box = h("div", { class: "crop-box hidden" });
+    for (const name of ["nw", "n", "ne", "e", "se", "s", "sw", "w"]) {
+      box.append(h("span", { class: "crop-handle", "data-handle": name }));
+    }
+    const canvas = h("div", { class: "crop-canvas" }, image, box);
+    const stage = h("div", { class: "crop-stage" }, canvas);
+    const label = h("span", { class: "crop-page-label" }, "Página 1");
+    const prev = h("button", { type: "button", class: "icon-btn", title: "Página anterior", disabled: true }, "‹");
+    const next = h("button", { type: "button", class: "icon-btn", title: "Próxima página", disabled: true }, "›");
+    const status = h("div", { class: "crop-status" }, "Selecione um PDF para visualizar.");
+    const el = h("div", { class: "crop-preview hidden" },
+      h("div", { class: "crop-preview-head" },
+        h("span", { class: "crop-preview-title" }, "Ajuste visual do recorte"),
+        h("div", { class: "crop-pager" }, prev, label, next)
+      ),
+      stage,
+      status,
+      h("small", { class: "hint" }, "Arraste a área ou os cantos. O recorte será aplicado a todas as páginas.")
+    );
+    return {
+      el, image, box, canvas, label, prev, next, status,
+      job: null, page: 1, pages: 0, sourceKey: null,
+      rect: { l: 0, t: 0, r: 1, b: 1 }, loaded: false, controller: null
+    };
+  }
+
+  function constrainCrop(rect) {
+    let l = clamp(rect.l, 0, 1);
+    let r = clamp(rect.r, 0, 1);
+    let t = clamp(rect.t, 0, 1);
+    let b = clamp(rect.b, 0, 1);
+    if (r - l < CROP_MIN) {
+      if (l + CROP_MIN <= 1) r = l + CROP_MIN;
+      else {
+        r = 1;
+        l = 1 - CROP_MIN;
+      }
+    }
+    if (b - t < CROP_MIN) {
+      if (t + CROP_MIN <= 1) b = t + CROP_MIN;
+      else {
+        b = 1;
+        t = 1 - CROP_MIN;
+      }
+    }
+    return { l, r, t, b };
+  }
+
+  function optionNumber(id) {
+    if (!current) return 0;
+    const input = current.form.querySelector(`[data-opt="${id}"]`);
+    const value = input ? parseFloat(input.value) : 0;
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  function rectFromInputs() {
+    return constrainCrop({
+      l: clamp(optionNumber("left"), 0, 95) / 100,
+      r: 1 - clamp(optionNumber("right"), 0, 95) / 100,
+      t: clamp(optionNumber("top"), 0, 95) / 100,
+      b: 1 - clamp(optionNumber("bottom"), 0, 95) / 100
+    });
+  }
+
+  function syncCropInputs(rect) {
+    if (!current) return;
+    const values = {
+      top: rect.t * 100,
+      right: (1 - rect.r) * 100,
+      bottom: (1 - rect.b) * 100,
+      left: rect.l * 100
+    };
+    for (const [id, value] of Object.entries(values)) {
+      const input = current.form.querySelector(`[data-opt="${id}"]`);
+      if (input) input.value = String(Math.round(value * 10) / 10);
+    }
+  }
+
+  function updateCropStatus(rect) {
+    const cp = current && current.crop;
+    if (!cp) return;
+    const w = ((rect.r - rect.l) * 100).toFixed(1);
+    const h = ((rect.b - rect.t) * 100).toFixed(1);
+    cp.status.textContent = `Área selecionada: ${w}% × ${h}% da página.`;
+  }
+
+  function setCropRect(rect, syncInputs = true) {
+    const cp = current && current.crop;
+    if (!cp) return;
+    const next = constrainCrop(rect);
+    cp.rect = next;
+    cp.box.style.left = `${next.l * 100}%`;
+    cp.box.style.top = `${next.t * 100}%`;
+    cp.box.style.width = `${(next.r - next.l) * 100}%`;
+    cp.box.style.height = `${(next.b - next.t) * 100}%`;
+    cp.box.classList.remove("hidden");
+    if (syncInputs) syncCropInputs(next);
+    updateCropStatus(next);
+  }
+
+  function syncCropFromInputs() {
+    const cp = current && current.crop;
+    if (!cp) return;
+    const rect = rectFromInputs();
+    if (!cp.loaded) {
+      cp.rect = rect;
+      return;
+    }
+    setCropRect(rect, false);
+  }
+
+  const cropUrl = (data) => data.image_url;
+
+  async function loadCropPreview(file, page) {
+    const cp = current && current.crop;
+    if (!cp || !file) return;
+    if (cp.controller) cp.controller.abort();
+    const controller = new AbortController();
+    cp.controller = controller;
+    cp.el.classList.remove("hidden");
+    cp.el.classList.add("loading");
+    cp.status.textContent = "Gerando prévia da página...";
+
+    const formData = new FormData();
+    if (cp.job) {
+      formData.append("job", cp.job);
+      formData.append("page", String(page));
+    } else {
+      formData.append("files", file, file.name);
+      formData.append("page", "1");
+    }
+
+    try {
+      const response = await fetch("/api/crop/preview", {
+        method: "POST", body: formData, signal: controller.signal
+      });
+      let data = null;
+      try { data = await response.json(); } catch (_) { /* ignore */ }
+      if (current && current.crop !== cp) return;
+      if (!response.ok || !data || !data.ok) {
+        throw new Error((data && data.error) || `Falha ao gerar prévia (HTTP ${response.status}).`);
+      }
+      cp.job = data.job;
+      cp.page = data.page;
+      cp.pages = data.pages;
+      cp.label.textContent = `Página ${data.page} de ${data.pages}`;
+      cp.prev.disabled = data.page <= 1;
+      cp.next.disabled = data.page >= data.pages;
+      cp.status.textContent = "Carregando imagem...";
+      cp.image.onload = () => {
+        if (!current || current.crop !== cp) return;
+        cp.loaded = true;
+        cp.el.classList.remove("loading");
+        setCropRect(cp.rect, false);
+        updateCropStatus(cp.rect);
+      };
+      cp.image.onerror = () => {
+        if (!current || current.crop !== cp) return;
+        cp.loaded = false;
+        cp.el.classList.remove("loading");
+        cp.status.textContent = "Não foi possível carregar a imagem da prévia.";
+      };
+      cp.image.src = cropUrl(data);
+      if (cp.image.complete && cp.image.naturalWidth) cp.image.onload();
+    } catch (err) {
+      if (err.name === "AbortError") return;
+      if (!current || current.crop !== cp) return;
+      cp.loaded = false;
+      cp.el.classList.remove("loading");
+      cp.box.classList.add("hidden");
+      cp.status.textContent = err.message || "Não foi possível gerar a prévia.";
+    } finally {
+      if (cp.controller === controller) cp.controller = null;
+    }
+  }
+
+  function refreshCropPreview() {
+    const cp = current && current.crop;
+    if (!cp) return;
+    if (!state.files.length) {
+      if (cp.controller) cp.controller.abort();
+      cp.el.classList.add("hidden");
+      cp.box.classList.add("hidden");
+      cp.job = null;
+      cp.sourceKey = null;
+      cp.loaded = false;
+      return;
+    }
+    const file = state.files[0];
+    const key = fileKey(file);
+    if (cp.sourceKey === key) return;
+    cp.sourceKey = key;
+    cp.job = null;
+    cp.page = 1;
+    cp.pages = 0;
+    cp.rect = rectFromInputs();
+    loadCropPreview(file, 1);
+  }
+
+  function bindCropPreview(cp) {
+    cp.prev.addEventListener("click", () => {
+      if (cp.page > 1 && state.files.length) loadCropPreview(state.files[0], cp.page - 1);
+    });
+    cp.next.addEventListener("click", () => {
+      if (cp.page < cp.pages && state.files.length) loadCropPreview(state.files[0], cp.page + 1);
+    });
+
+    let drag = null;
+    cp.canvas.addEventListener("pointerdown", (event) => {
+      const handle = event.target.closest && event.target.closest("[data-handle]");
+      const inside = event.target.closest && event.target.closest(".crop-box");
+      if (!inside) return;
+      const bounds = cp.canvas.getBoundingClientRect();
+      if (!bounds.width || !bounds.height) return;
+      event.preventDefault();
+      if (cp.canvas.setPointerCapture) cp.canvas.setPointerCapture(event.pointerId);
+      drag = {
+        pointerId: event.pointerId,
+        mode: handle ? "resize" : "move",
+        handle: handle ? handle.dataset.handle : null,
+        startX: event.clientX,
+        startY: event.clientY,
+        width: bounds.width,
+        height: bounds.height,
+        rect: { ...cp.rect }
+      };
+    });
+
+    cp.canvas.addEventListener("pointermove", (event) => {
+      if (!drag || event.pointerId !== drag.pointerId) return;
+      const dx = (event.clientX - drag.startX) / drag.width;
+      const dy = (event.clientY - drag.startY) / drag.height;
+      let rect = { ...drag.rect };
+      if (drag.mode === "move") {
+        const w = rect.r - rect.l;
+        const hgt = rect.b - rect.t;
+        const left = clamp(rect.l + dx, 0, 1 - w);
+        const top = clamp(rect.t + dy, 0, 1 - hgt);
+        rect = { l: left, r: left + w, t: top, b: top + hgt };
+      } else {
+        const handle = drag.handle || "";
+        if (handle.includes("w")) rect.l = clamp(rect.l + dx, 0, rect.r - CROP_MIN);
+        if (handle.includes("e")) rect.r = clamp(rect.r + dx, rect.l + CROP_MIN, 1);
+        if (handle.includes("n")) rect.t = clamp(rect.t + dy, 0, rect.b - CROP_MIN);
+        if (handle.includes("s")) rect.b = clamp(rect.b + dy, rect.t + CROP_MIN, 1);
+      }
+      setCropRect(rect);
+    });
+
+    const finish = (event) => {
+      if (drag && event.pointerId === drag.pointerId) drag = null;
+    };
+    cp.canvas.addEventListener("pointerup", finish);
+    cp.canvas.addEventListener("pointercancel", finish);
   }
 
   function openTool(tool) {
@@ -312,12 +581,17 @@
     });
 
     const listEl = h("div", { class: "file-list hidden" });
+    const cropPreview = tool.id === "crop" ? buildCropPreview() : null;
     const optionsEl = h("div", { class: "options" });
 
     if (tool.options) {
       for (const opt of tool.options) optionsEl.append(buildOption(opt));
-      optionsEl.addEventListener("change", updateVisibility);
-      optionsEl.addEventListener("input", updateVisibility);
+      const onOptionChange = () => {
+        updateVisibility();
+        if (tool.id === "crop") syncCropFromInputs();
+      };
+      optionsEl.addEventListener("change", onOptionChange);
+      optionsEl.addEventListener("input", onOptionChange);
       if (tool.id === "ocr") {
         const sel = optionsEl.querySelector('[data-opt="lang"]');
         sel.innerHTML = "";
@@ -335,7 +609,7 @@
 
     const submit = h("button", { type: "submit", class: "btn primary", disabled: true }, "Processar arquivo");
     const form = h("form", { class: "tool-form", novalidate: true },
-      fileInput, drop, listEl, optionsEl, error, progress,
+      fileInput, drop, listEl, cropPreview ? cropPreview.el : null, optionsEl, error, progress,
       h("div", { class: "actions" }, submit)
     );
 
@@ -347,7 +621,8 @@
 
     const stepbar = stepsBar(1);
     body.append(head, stepbar, form);
-    current = { tool, form, listEl, submit, error, progress, bar, progressText, xhr: null, steps: stepbar };
+    current = { tool, form, listEl, submit, error, progress, bar, progressText, xhr: null, steps: stepbar, crop: cropPreview };
+    if (cropPreview) bindCropPreview(cropPreview);
     updateVisibility();
     updateSubmitState();
     modal.scrollTop = 0;
@@ -459,7 +734,13 @@
     }
 
     const formData = new FormData();
-    for (const file of state.files) formData.append("files", file, file.name);
+    const cropJob = tool.id === "crop" && current.crop && current.crop.job
+      && current.crop.sourceKey === fileKey(state.files[0]);
+    if (cropJob) {
+      formData.append("job", current.crop.job);
+    } else {
+      for (const file of state.files) formData.append("files", file, file.name);
+    }
     for (const opt of tool.options || []) {
       const el = form.querySelector(`[data-opt="${opt.id}"]`);
       if (!el) continue;
@@ -558,6 +839,9 @@
     }
     if (current && current.xhr) {
       try { current.xhr.abort(); } catch (_) { /* ignore */ }
+    }
+    if (current && current.crop && current.crop.controller) {
+      try { current.crop.controller.abort(); } catch (_) { /* ignore */ }
     }
     modal.classList.add("hidden");
     document.body.classList.remove("locked");

@@ -184,6 +184,74 @@ def read_pdf(path: Path, password: str = "") -> PdfReader:
         raise UserError(f"Não foi possível ler o PDF: {exc}")
 
 
+def existing_upload_pdf(job: str) -> Path:
+    files = sorted(p for p in job_dir(job, "up").glob("*.pdf") if p.is_file())
+    if not files:
+        raise UserError("A prévia expirou. Envie o arquivo novamente.")
+    return files[0]
+
+
+def base_name_from_upload(path: Path) -> str:
+    return re.sub(r"^\d{3}_", "", path.stem) or "arquivo"
+
+
+def page_display_size(page) -> tuple[float, float]:
+    box = page.mediabox
+    width, height = float(box.width), float(box.height)
+    rotation = int(page.get("/Rotate", 0) or 0) % 360
+    if rotation in (90, 270):
+        width, height = height, width
+    return width, height
+
+
+def render_preview(src: Path, page_number: int, dst: Path, dpi: int = 110) -> None:
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    prefix = dst.with_suffix("")
+    run(
+        [
+            "pdftoppm", "-f", str(page_number), "-l", str(page_number),
+            "-singlefile", "-png", "-r", str(dpi), str(src), str(prefix),
+        ],
+        timeout=120,
+    )
+    if not dst.exists():
+        raise UserError("Não foi possível gerar a prévia da página.")
+
+
+def crop_box_for(page, top: float, right: float, bottom: float, left: float) -> RectangleObject:
+    """Converte margens percentuais (na página exibida) para o CropBox do PDF."""
+    box = page.mediabox
+    bx0, by0, bx1, by1 = float(box.left), float(box.bottom), float(box.right), float(box.top)
+    width, height = bx1 - bx0, by1 - by0
+    rotation = int(page.get("/Rotate", 0) or 0) % 360
+    if rotation not in (0, 90, 180, 270):
+        rotation = 0
+    if rotation in (90, 270):
+        disp_w, disp_h = height, width
+    else:
+        disp_w, disp_h = width, height
+
+    x0d = left / 100.0 * disp_w
+    x1d = (1.0 - right / 100.0) * disp_w
+    y0d = bottom / 100.0 * disp_h
+    y1d = (1.0 - top / 100.0) * disp_h
+
+    if rotation == 90:
+        x0, x1 = width - y1d, width - y0d
+        y0, y1 = x0d, x1d
+    elif rotation == 180:
+        x0, x1 = width - x1d, width - x0d
+        y0, y1 = height - y1d, height - y0d
+    elif rotation == 270:
+        x0, x1 = y0d, y1d
+        y0, y1 = height - x1d, height - x0d
+    else:
+        x0, x1 = x0d, x1d
+        y0, y1 = y0d, y1d
+
+    return RectangleObject((bx0 + x0, by0 + y0, bx0 + x1, by0 + y1))
+
+
 def save_uploads(job: str, only_exts: set[str] | None = None) -> list[dict]:
     files = [f for f in request.files.getlist("files") if f and f.filename]
     if not files:
@@ -490,6 +558,51 @@ def download(job: str, name: str):
         return jsonify(ok=False, error="Arquivo não encontrado."), 404
     directory = job_dir(job, "out")
     return send_from_directory(directory, name, as_attachment=True, download_name=name)
+
+
+@app.get("/preview/<job>/<name>")
+def preview_image(job: str, name: str):
+    if not re.fullmatch(r"[0-9a-f]{32}", job) or not re.fullmatch(r"preview_\d+\.png", name):
+        return jsonify(ok=False, error="Prévia não encontrada."), 404
+    return send_from_directory(job_dir(job, "up"), name, as_attachment=False)
+
+
+@app.post("/api/crop/preview")
+def api_crop_preview():
+    job = (request.form.get("job") or "").strip()
+    if job:
+        if not re.fullmatch(r"[0-9a-f]{32}", job):
+            raise UserError("Sessão de prévia inválida.")
+        src = existing_upload_pdf(job)
+        reader = read_pdf(src)
+    else:
+        job = new_job()
+        saved = save_uploads(job, {".pdf"})
+        src = saved[0]["path"]
+        reader = read_pdf(src)
+
+    total = len(reader.pages)
+    try:
+        page_no = int(request.form.get("page", "1"))
+    except (TypeError, ValueError):
+        page_no = 1
+    page_no = max(1, min(page_no, total))
+    page = reader.pages[page_no - 1]
+    width, height = page_display_size(page)
+
+    dst = job_dir(job, "up") / f"preview_{page_no}.png"
+    render_preview(src, page_no, dst)
+    version = int(dst.stat().st_mtime)
+    return jsonify(
+        ok=True,
+        job=job,
+        page=page_no,
+        pages=total,
+        width=round(width, 2),
+        height=round(height, 2),
+        rotation=int(page.get("/Rotate", 0) or 0) % 360,
+        image_url=f"/preview/{job}/{dst.name}?v={version}",
+    )
 
 
 @app.errorhandler(413)
@@ -811,36 +924,41 @@ def api_reorder():
 
 @app.post("/api/crop")
 def api_crop():
-    job = new_job()
-    saved = save_uploads(job, {".pdf"})
-    src = saved[0]["path"]
-    reader = read_pdf(src)
-    base = safe_stem(saved[0]["name"])
+    job = (request.form.get("job") or "").strip()
+    if job:
+        if not re.fullmatch(r"[0-9a-f]{32}", job):
+            raise UserError("Sessão de prévia inválida.")
+        src = existing_upload_pdf(job)
+        reader = read_pdf(src)
+        base = base_name_from_upload(src)
+    else:
+        job = new_job()
+        saved = save_uploads(job, {".pdf"})
+        src = saved[0]["path"]
+        reader = read_pdf(src)
+        base = safe_stem(saved[0]["name"])
 
     def margin(name: str) -> float:
         try:
             value = float(request.form.get(name, "0"))
-        except ValueError:
+        except (TypeError, ValueError):
             raise UserError("Margens inválidas.")
-        return max(0.0, min(value, 45.0))
+        return max(0.0, min(value, 95.0))
 
     top, right = margin("top"), margin("right")
     bottom, left = margin("bottom"), margin("left")
     if max(top, right, bottom, left) <= 0:
-        raise UserError("Informe ao menos uma margem maior que zero.")
+        raise UserError("Selecione a área de recorte.")
+    if left + right >= 100 or top + bottom >= 100:
+        raise UserError("O recorte deixaria a página sem área visível.")
 
     writer = PdfWriter()
     for page in reader.pages:
-        box = page.mediabox
-        width, height = float(box.width), float(box.height)
-        x0 = float(box.left) + width * left / 100
-        x1 = float(box.right) - width * right / 100
-        y0 = float(box.bottom) + height * bottom / 100
-        y1 = float(box.top) - height * top / 100
-        if x1 - x0 < 50 or y1 - y0 < 50:
+        box = crop_box_for(page, top, right, bottom, left)
+        if float(box.width) < 50 or float(box.height) < 50:
             raise UserError("O recorte deixaria a página pequena demais.")
-        page.cropbox = RectangleObject((x0, y0, x1, y1))
-        page.mediabox = RectangleObject((x0, y0, x1, y1))
+        page.cropbox = box
+        page.mediabox = box
         writer.add_page(page)
 
     dst = job_dir(job, "up") / "recortado.pdf"
@@ -849,7 +967,7 @@ def api_crop():
     return jsonify(
         ok=True,
         file=deliver(job, base, [(f"{base}_recortado.pdf", dst)]),
-        note=f"Margens aplicadas em {len(writer.pages)} página(s).",
+        note=f"Recorte aplicado em {len(writer.pages)} página(s).",
     )
 
 
