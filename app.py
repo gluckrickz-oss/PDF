@@ -1237,7 +1237,7 @@ def main() -> None:
     parser.add_argument("--debug", action="store_true")
     args = parser.parse_args()
     cleanup_old(force=True)
-    print(f"\n  PDF rodando em http://{args.host}:{args.port}\n")
+    print(f"\n  Editor de PDF rodando em http://{args.host}:{args.port}\n")
     app.run(host=args.host, port=args.port, debug=args.debug, threaded=True)
 
 

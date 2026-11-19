@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# PDF2 - instalador e atualizador para Linux
+# Editor de PDF - instalador e atualizador para Linux
 #
-# Primeira vez: instala tudo o que o PDF2 precisa (Python, Ghostscript,
+# Primeira vez: instala tudo o que o Editor de PDF precisa (Python, Ghostscript,
 # Poppler, Tesseract, LibreOffice), baixa o projeto do GitHub, prepara o
 # ambiente Python, cria o serviço "pdf2" e o comando "pdf2".
 # Já instalado: atualiza o projeto e as bibliotecas e reinicia o serviço.
@@ -140,7 +140,7 @@ PY
 # 2. Projeto do GitHub
 # --------------------------------------------------------------------------
 if [ -d "$INSTALL_DIR/.git" ]; then
-  info "Atualizando o PDF2 em $INSTALL_DIR"
+  info "Atualizando o Editor de PDF em $INSTALL_DIR"
   OLD_REV="$(git -C "$INSTALL_DIR" rev-parse --short HEAD 2>/dev/null || echo '?')"
   git -C "$INSTALL_DIR" fetch --depth 1 origin "$BRANCH"
   git -C "$INSTALL_DIR" reset --hard "origin/$BRANCH"
@@ -154,7 +154,7 @@ else
   if [ -e "$INSTALL_DIR" ] && [ -n "$(ls -A "$INSTALL_DIR" 2>/dev/null)" ]; then
     die "$INSTALL_DIR já existe e não é uma cópia do GitHub. Use PDF2_DIR=/outra/pasta."
   fi
-  info "Baixando o PDF2 do GitHub para $INSTALL_DIR"
+  info "Baixando o Editor de PDF do GitHub para $INSTALL_DIR"
   git clone --depth 1 --branch "$BRANCH" "$REPO_URL" "$INSTALL_DIR"
 fi
 
@@ -177,7 +177,7 @@ fi
 info "Criando o comando pdf2"
 "${SUDO[@]}" tee "$COMMAND" >/dev/null <<EOF
 #!/usr/bin/env bash
-# Comando de controle do PDF2 (gerado pelo setup-linux.sh)
+# Comando de controle do Editor de PDF (gerado pelo setup-linux.sh)
 INSTALL_DIR="$INSTALL_DIR"
 SERVICE="$SERVICE"
 CONFIG="$CONFIG"
@@ -226,7 +226,7 @@ iniciar() {
       >>"$LOGFILE" 2>&1 &
     echo $! >"$PIDFILE"
   fi
-  if esperar; then echo "PDF2 iniciado."; enderecos; else echo "O PDF2 não respondeu. Veja: pdf2 logs"; return 1; fi
+  if esperar; then echo "Editor de PDF iniciado."; enderecos; else echo "O Editor de PDF não respondeu. Veja: pdf2 logs"; return 1; fi
 }
 
 parar() {
@@ -235,7 +235,7 @@ parar() {
   elif rodando_sem_systemd; then
     kill "$(cat "$PIDFILE")" 2>/dev/null; rm -f "$PIDFILE"
   fi
-  echo "PDF2 parado."
+  echo "Editor de PDF parado."
 }
 
 case "${1:-}" in
@@ -245,7 +245,7 @@ case "${1:-}" in
     if [ "$HAS_SYSTEMD" -eq 1 ]; then "${SUDO[@]}" systemctl restart "$SERVICE"; else parar; fi
     iniciar ;;
   status)
-    if responde; then echo "PDF2: RODANDO"; else echo "PDF2: PARADO"; fi
+    if responde; then echo "Editor de PDF: RODANDO"; else echo "Editor de PDF: PARADO"; fi
     enderecos
     if [ "$HAS_SYSTEMD" -eq 1 ]; then
       echo "Inicia com o computador: $(systemctl is-enabled "$SERVICE" 2>/dev/null || echo nao)"
@@ -300,7 +300,7 @@ if [ "$HAS_SYSTEMD" -eq 1 ]; then
   info "Configurando o serviço $SERVICE"
   "${SUDO[@]}" tee "$UNIT" >/dev/null <<EOF
 [Unit]
-Description=PDF2 - ferramentas de PDF
+Description=Editor de PDF
 After=network-online.target
 Wants=network-online.target
 
@@ -322,12 +322,12 @@ WantedBy=multi-user.target
 EOF
   "${SUDO[@]}" systemctl daemon-reload
   "${SUDO[@]}" systemctl enable "$SERVICE" >/dev/null 2>&1
-  # Libera a porta caso o PDF2 antigo tenha sido aberto pelo atalho.
+  # Libera a porta caso o Editor de PDF antigo tenha sido aberto pelo atalho.
   pkill -u "$RUN_USER" -f "$INSTALL_DIR/app.py" 2>/dev/null || true
   pkill -u "$RUN_USER" -f "^$VENV/bin/python app.py" 2>/dev/null || true
   "${SUDO[@]}" systemctl restart "$SERVICE"
 else
-  warn "systemd não encontrado: o PDF2 não iniciará sozinho com o computador. Use: pdf2 start"
+  warn "systemd não encontrado: o Editor de PDF não iniciará sozinho com o computador. Use: pdf2 start"
   "$COMMAND" stop >/dev/null 2>&1 || true
 fi
 
@@ -346,7 +346,7 @@ mkdir -p "$APPS_DIR"
 cat > "$APPS_DIR/pdf2.desktop" <<EOF
 [Desktop Entry]
 Type=Application
-Name=PDF2
+Name=Editor de PDF
 Comment=Ferramentas de PDF
 Exec=$COMMAND abrir
 Terminal=false

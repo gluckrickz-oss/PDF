@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# PDF2 - liga ou desliga o acesso pela rede (Linux)
+# Editor de PDF - liga ou desliga o acesso pela rede (Linux)
 #
-# Faz o serviço do PDF2 aceitar conexões de outros computadores da rede
+# Faz o serviço do Editor de PDF aceitar conexões de outros computadores da rede
 # (http://IP-DESTA-MAQUINA:8000) e libera a porta no firewall.
 # Rode depois do setup-linux.sh. Também disponível como "pdf2 rede".
 #
@@ -20,7 +20,7 @@ die()  { printf '\033[1;31mERRO: %s\033[0m\n' "$*" >&2; exit 1; }
 
 if [ "$(id -u)" -eq 0 ]; then SUDO=(); else SUDO=(sudo); fi
 
-[ -x "$COMMAND" ] && [ -f "$CONFIG" ] || die "PDF2 não instalado. Rode antes o setup-linux.sh."
+[ -x "$COMMAND" ] && [ -f "$CONFIG" ] || die "Editor de PDF não instalado. Rode antes o setup-linux.sh."
 
 PDF2_PORT=8000
 # shellcheck disable=SC1090
@@ -39,7 +39,7 @@ firewall() {
   # $1 = abrir | fechar
   if command -v ufw >/dev/null 2>&1 && "${SUDO[@]}" ufw status 2>/dev/null | grep -q "Status: active"; then
     if [ "$1" = abrir ]; then
-      "${SUDO[@]}" ufw allow "$PORT/tcp" comment "PDF2" >/dev/null
+      "${SUDO[@]}" ufw allow "$PORT/tcp" comment "Editor de PDF" >/dev/null
     else
       "${SUDO[@]}" ufw delete allow "$PORT/tcp" >/dev/null 2>&1 || true
     fi
@@ -73,7 +73,7 @@ case "${1:-}" in
     firewall abrir
     "$COMMAND" restart
     echo
-    echo "Atenção: qualquer pessoa da rede consegue usar o PDF2 (não há senha)."
+    echo "Atenção: qualquer pessoa da rede consegue usar o Editor de PDF (não há senha)."
     echo "Para desativar: pdf2 rede --desativar"
     ;;
   *)
